@@ -1,0 +1,35 @@
+{{ ansible_managed | comment }}
+
+import pydig
+import subprocess
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+sched = BlockingScheduler()
+
+@sched.scheduled_job('interval', seconds=10)
+def update_ipset_{{ item.value['random'] }}():
+    # Get DNS record for fqdn
+    res = pydig.query('{{ item.value['fqdn'] }}', 'A')
+
+    # Get actual ipset Members entries
+    try:
+        subprocess.check_output('ipset list {{ item.value['random'] }}', shell=True)
+    except:
+        cmd = 'ipset create {{ item.value['random'] }} hash:ip -exist'
+        subprocess.run(cmd, shell=True)
+    actual_ipset = [i for i in subprocess.check_output('ipset list {{ item.value['random'] }}', shell=True).decode("utf-8").split('Members:')[1].split('\n') if i]
+
+    # Update ipset Members entries
+    # Add new ip address
+    for i in res:
+        if i not in actual_ipset:
+            cmd = 'ipset add {{ item.value['random'] }} ' + i
+            subprocess.run(cmd, shell=True)
+
+    # Remove outdated Members entries
+    for i in actual_ipset:
+        if i not in res:
+            cmd = 'ipset del {{ item.value['random'] }} ' + i
+            subprocess.run(cmd, shell=True)
+
+sched.start()

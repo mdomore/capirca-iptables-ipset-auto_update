@@ -1,0 +1,7 @@
+{{ ansible_managed | comment }}
+
+*filter
+{% for i in res_files_path %}
+{{ lookup('file', i) }}
+{% endfor %}
+COMMIT

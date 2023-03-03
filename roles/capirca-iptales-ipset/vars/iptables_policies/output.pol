@@ -1,0 +1,18 @@
+# Default policies
+
+term base-allow-lo0-out {
+  comment:: "Allow all loopback communications"
+  verbatim::  speedway "-A OUTPUT -o lo -j ACCEPT"
+}
+term base-allow-est-out {
+  option:: established
+  action:: accept
+}
+term base-allow-icmp-out {
+  protocol:: icmp
+  action:: accept
+}
+term iptables-OUTPUT-DENY_ {
+  logging:: true
+  action:: deny
+}

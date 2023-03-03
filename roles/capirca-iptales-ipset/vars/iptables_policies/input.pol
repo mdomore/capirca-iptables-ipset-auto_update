@@ -1,0 +1,17 @@
+# Default policies
+
+term base-allow-est-in {
+  option:: established
+  action:: accept
+}
+term base-allow-icmp-in {
+  protocol:: icmp
+  icmp-type:: echo-request
+  action:: accept
+}
+
+# logging
+term iptables-INPUT-DENY_ {
+  logging:: true
+  action:: deny
+}

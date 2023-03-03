@@ -1,0 +1,18 @@
+---
+ipset:
+  - name: server1_foo_com
+    dst: 192.168.1.10
+    dst_port: "443"
+    src:
+      - test.io
+      - server1.test.io
+      - server2.test.io
+
+  - name: server2_foo_com
+    dst: 192.168.1.20
+    dst_port: "80,443"
+    src:
+      - test.io
+      - server1.test.io
+      - server2.test.io
+      - input.io

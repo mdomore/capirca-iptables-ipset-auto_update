@@ -1,0 +1,14 @@
+---
+def_folder: "{{ role_path }}/vars/def"
+input: "{{ role_path }}/vars/iptables_policies/input.pol"
+output: "{{ role_path }}/vars/iptables_policies/output.pol"
+forward: "{{ role_path }}/vars/iptables_policies/forward.pol"
+
+iptables_config_path: "~/iptables/"
+ipset_config_path: "~/iptables/ipset/"
+
+temp_path: "/tmp/ansible/iptables/"
+
+pip_packages:
+  - pydig
+  - apscheduler

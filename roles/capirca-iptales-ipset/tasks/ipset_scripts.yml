@@ -1,0 +1,7 @@
+---
+
+- name: Iptables - Create update scripts for ipset
+  template:
+    src: templates/ipset_fqdn_update.j2
+    dest: "{{ ipset_config_path }}/{{ item.value.random }}.py"
+  with_dict: "{{ outer_item.value }}"

@@ -1,0 +1,42 @@
+---
+- name: Iptables - Generate ref key
+  set_fact:
+    random_pod_name: "{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=8') }}"
+
+- name: Create and Add key item to dictionary
+  set_fact:
+      ref_dict: "{{ ref_dict | default({}) | combine ({item.0.name : {(item.1) | replace('.','_') | replace('-','_') : {'random' : random_pod_name}}}, recursive=True) }}"
+
+- name: Add fqdn item to dictionary
+  set_fact:
+      ref_dict: "{{ ref_dict | default({}) | combine ({item.0.name : {(item.1) | replace('.','_') | replace('-','_') : {'fqdn' : (item.1)}}}, recursive=True) }}"
+
+- name: Iptables - Add FQDN ACL
+  lineinfile:
+    path: "{{ acl_set_file.path }}"
+    insertbefore: '^-N\ I\_iptables-INPUT-DENY\_'
+    line: -N I_allow-{{ random_pod_name }}-in
+
+- name: Iptables - Add FQDN ACL
+  lineinfile:
+    path: "{{ acl_set_file.path }}"
+    insertafter: '-N I_allow-{{ random_pod_name }}-in'
+    line: -A INPUT -j I_allow-{{ random_pod_name }}-in
+
+- name: Iptables - Add FQDN ACL for single port
+  lineinfile:
+    path: "{{ acl_set_file.path }}"
+    insertbefore: '-A INPUT -j I_allow-{{ random_pod_name }}-in'
+    line: -A I_allow-{{ random_pod_name }}-in -p tcp --dport {{ item.0.dst_port }} -d {{ item.0.dst }} -m set --match-set {{ random_pod_name }} src -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+  when: "not ',' in item.0.dst_port | string "
+
+- name: Iptables - Add FQDN ACL for multiple ports
+  lineinfile:
+    path: "{{ acl_set_file.path }}"
+    insertbefore: '-A INPUT -j I_allow-{{ random_pod_name }}-in'
+    line: -A I_allow-{{ random_pod_name }}-in -p tcp -m multiport --dports {{ item.0.dst_port }} -d {{ item.0.dst }} -m set --match-set {{ random_pod_name }} src -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+  when: "',' in item.0.dst_port | string "
+
+- debug:
+    var: ref_dict
+    verbosity: 2

@@ -1,0 +1,213 @@
+---
+- name: Iptables - Create a List variable to store file path
+  set_fact:
+    res_files_path: []
+
+- name: Iptables - Include ipset
+  include_vars:
+    file: "{{ role_path }}/vars/iptables_policies/ipset.yml"
+
+- name: Iptables - Generate ACL for INPUT
+  nleiva.capirca_acl.translate:
+    platform: 'speedway'
+    filter_options:
+        - INPUT
+        - DROP
+    def_folder: "{{ def_folder }}"
+    pol_file: "{{ input }}"
+    comment: "INPUT policy for Speedway Iptables."
+  register: input_res
+
+- name: Iptables - Create Temporary file for INPUT
+  tempfile:
+    state: file
+  register: input_res_file
+
+- name: Iptables - Add new element to res_files_path for INPUT
+  set_fact:
+    res_files_path: "{{ res_files_path + [ input_res_file.path ] }}"
+
+- name: Iptables - Save input_res to file for INPUT
+  copy:
+    content: "{{ input_res }}"
+    dest: "{{ input_res_file.path }}"
+
+- name: Iptables - Dump the resulting ACL for INPUT
+  debug:
+    msg: "{{ input_res.message.split('\n') }}"
+    verbosity: 2
+
+- name: Iptables - Generate ACL for OUTPUT
+  nleiva.capirca_acl.translate:
+    platform: 'speedway'
+    filter_options:
+        - OUTPUT
+        - DROP
+    def_folder: "{{ def_folder }}"
+    pol_file: "{{ output }}"
+    comment: "OUTPUT policy for Speedway Iptables."
+  register: output_res
+
+- name: Iptables - Create Temporary file for OUTPUT
+  tempfile:
+    state: file
+  register: output_res_file
+
+- name: Iptables - Add new element to res_files_path for OUTPUT
+  set_fact:
+    res_files_path: "{{ res_files_path + [ output_res_file.path ] }}"
+
+- name: Iptables - Save output_res to file for OUTPUT
+  copy:
+    content: "{{ output_res }}"
+    dest: "{{ output_res_file.path }}"
+
+- name: Iptables - Dump the resulting ACL for OUTPUT
+  debug:
+    msg: "{{ output_res.message.split('\n') }}"
+    verbosity: 2
+
+- name: Iptables - Generate ACL for FORWARD
+  nleiva.capirca_acl.translate:
+    platform: 'speedway'
+    filter_options:
+        - FORWARD
+        - DROP
+    def_folder: "{{ def_folder }}"
+    pol_file: "{{ forward }}"
+    comment: "FORWARD policy for Speedway Iptables."
+  register: forward_res
+
+- name: Iptables - Create Temporary file for FORWARD
+  tempfile:
+    state: file
+  register: forward_res_file
+
+- name: Iptables Add new element to res_files_path for FORWARD
+  set_fact:
+    res_files_path: "{{ res_files_path + [ forward_res_file.path ] }}"
+
+- name: Iptables - Save forward_res to file  for FORWARD
+  copy:
+    content: "{{ forward_res }}"
+    dest: "{{ forward_res_file.path }}"
+
+- name: Iptables - Dump the resulting ACL for FORWARD
+  debug:
+    msg: "{{ forward_res.message.split('\n') }}"
+    verbosity: 2
+
+- name: Iptables - Remove redondant tags from ACL generated files
+  vars:
+    regex:
+      - '\*filter(.+)inet\\n'
+      - 'COMMIT\\n'
+  ansible.builtin.replace:
+    path: "{{ item.0 }}"
+    regexp: "{{ item.1 }}"
+    replace: ""
+  with_nested:
+        - "{{ res_files_path }}"
+        - "{{ regex }}"
+
+- name: Iptables - Create Temporary file for complete ACL set
+  tempfile:
+    state: file
+  register: acl_set_file
+
+- name: Iptables - Concatenate ACL files
+  template:
+    src: templates/iptables.j2
+    dest: "{{ acl_set_file.path }}"
+
+- name: Iptables - Remove useless parts of configuration file
+  ansible.builtin.replace:
+    path: "{{ acl_set_file.path }}"
+    regexp: "{{ item }}"
+    replace: ""
+  loop:
+    - '{\"failed\": false, \"message\": \"'
+    - '\", \"failed\": false}'
+    - '", \"changed\": false, \"original_message\": \"speedway\"}'
+    - '{\"changed\": false, \"original_message\": \"speedway\", \"message\": "'
+
+- name: Iptables - Replace \\n with \n
+  ansible.builtin.replace:
+    path: "{{ acl_set_file.path }}"
+    regexp: '\\n'
+    replace: '\n'
+
+- name: Iptables add ipset ACL
+  include_tasks: ipset_acl.yml
+  loop: "{{ ipset|subelements('src') }}"
+  loop_control:
+    label: '"{{ item.1 }}" > "{{ item.0.name }}"'
+  when: ipset is defined
+
+- name: Print res_files_path to console
+  debug:
+    msg: "{{lookup('ansible.builtin.file', item) }}"
+    verbosity: 2
+  loop: "{{ res_files_path }}"
+
+- name: Print acl_set_file to console
+  vars:
+    file_content: |-
+      {{lookup('ansible.builtin.file', acl_set_file.path) }}
+  debug:
+    msg: "{{ file_content.split('\n') }}"
+    verbosity: 2
+
+- name: Iptables - Push ACL file to host
+  template:
+    src: "{{ acl_set_file.path }}"
+    dest: "{{ iptables_config_path }}"
+
+- name: Iptables - Creates directory for ipset scripts
+  file:
+    path: "{{ ipset_config_path }}"
+    state: directory
+
+- name: Iptables - Register old update scripts
+  find:
+    path: "{{ ipset_config_path }}"
+    patterns: "*.py"
+  register: scripts_to_delete
+
+- debug:
+    var: scripts_to_delete
+    verbosity: 2
+
+- name: Iptables - Remove old update scripts
+  file:
+    path: "{{ item['path'] }}"
+    state: absent
+  with_items: "{{ scripts_to_delete['files'] }}"
+
+- name: Iptables - Create ipset update scripts
+  include_tasks: ipset_scripts.yml
+  with_dict: "{{ ref_dict }}"
+  loop_control:
+    loop_var: outer_item
+
+- name: Iptables - Register old systemd scripts
+  find:
+    path: "{{ ipset_config_path }}"
+    patterns: "ipset_update_*"
+  register: systemd_scripts_to_delete
+
+- debug:
+    var: systemd_scripts_to_delete
+    verbosity: 2
+
+- name: Iptables - Remove old systemd scripts
+  file:
+    path: "{{ item['path'] }}"
+    state: absent
+  with_items: "{{ systemd_scripts_to_delete['files'] }}"
+
+- name: Iptables - Create ipset systemd scripts
+  include_tasks: ipset_systemd_scripts.yml
+  with_dict: "{{ ref_dict }}"
+  loop_control:
+    loop_var: outer_item

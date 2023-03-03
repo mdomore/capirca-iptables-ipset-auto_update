@@ -1,0 +1,10 @@
+---
+- hosts: localhost
+  gather_facts: no
+  name: Deploy iptables rules
+  strategy: host_pinned
+  serial: 1
+  roles:
+    - capirca-iptales-ipset
+  collections:
+    - nleiva.capirca_acl

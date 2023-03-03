@@ -1,0 +1,6 @@
+---
+- name: Iptables - Create systemd scripts for ipset
+  template:
+    src: templates/systemctl/ipset_fqdn_update_service.j2
+    dest: "{{ ipset_config_path }}/ipset_update_{{ item.value.random }}.service"
+  with_dict: "{{ outer_item.value }}"
