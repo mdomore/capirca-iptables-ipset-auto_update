@@ -1,19 +1,42 @@
-Ansible role for creating iptables rules from capirca definition files.
+# Ansible role for creating iptables rules from capirca definition files.
 
-Capirca installation
+## Features
 
-If setuptools Python package is not installed on your system, install it: For example, the following commands installs the package with apt package manager.
+- Use capirca definition files
+- Use Ipset for fqdn
+- Generate iptables file to be used with iptables-restore
+- Generate python scripts to update ipset continuously
+- Generate systemd service files to start python script with systemd
 
-sudo apt-get install python3-pip python3-setuptools
+## Installation
 
-Next, to install capirca from source, clone the capirca repository and run its installer:
+### Capirca
 
-git clone https://github.com/google/capirca.git
-cd capirca/
-python3 setup.py install --user
+Ref : https://github.com/google/capirca
 
+### Capirca ACL Collection for Ansible
 
+Ref : https://github.com/nleiva/capirca_acl
 
-You can also add ipset to manage fqdn access.
+## Usage
 
-Ipset are updated with python scripts.
+Add your policies in input.pol, ouput.pol and forward.pol files.
+Add your fqdn access in ipset.yml
+
+Example :
+
+```yaml
+---
+ipset:
+  - name: server1_foo_com
+    dst: 192.168.1.10
+    dst_port: "443"
+    src:
+      - test.io
+      - server1.test.io
+      - server2.test.io
+```
+
+Launch the playbook pb.main.yml
+
+Result will be in ~/iptables
